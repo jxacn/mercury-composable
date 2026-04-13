@@ -26,7 +26,7 @@ N/A
 
 1. Promote minigraph-playground-engine from "extensions" to "system"
 2. Support "OptionalService" annotation in FetcherFeature in MiniGraph playground
-3. OSS update: spring boot 4.0.5 and 3.5.13, log4j2 2.25.4
+3. OSS update: spring boot 4.0.5 and 3.5.13, log4j2 2.25.4, tomcat 10.1.54 and 11.0.21
 
 ---
 ## Version 4.4.4, 4/7/2026
