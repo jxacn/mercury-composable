@@ -11,7 +11,7 @@ rest:
     cors: cors_1
     headers: header_1
 
-  - service: "v1.get.ws.html"
+  - service: "get.ws.html"
     methods: ['GET']
     url: "/api/ws/{id}"
     timeout: 10s
