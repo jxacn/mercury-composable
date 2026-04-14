@@ -159,10 +159,10 @@
 }
 
 .resizeHandle:hover {
-  background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+  background: var(--primary-20);
 }
 
 .resizeHandle[data-separator="active"] {
-  background: color-mix(in srgb, var(--primary-color) 40%, transparent);
+  background: var(--primary-40);
 }
 

@@ -125,8 +125,8 @@
 
 /* Active drag-over state — amber to match the modal's accent colour */
 .dropZoneActive {
-  border-color: color-mix(in srgb, var(--warning-color) 80%, transparent);
-  background: color-mix(in srgb, var(--warning-color) 6%, transparent);
+  border-color: var(--warning-80);
+  background: var(--warning-06);
   color: var(--text-primary);
 }
 
@@ -169,8 +169,8 @@
 }
 
 .browseButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--warning-color) 8%, transparent);
-  border-color: color-mix(in srgb, var(--warning-color) 60%, transparent);
+  background: var(--warning-08);
+  border-color: var(--warning-60);
   color: var(--text-primary);
 }
 
@@ -235,8 +235,8 @@
 
 .errorBanner {
   color: var(--danger-color);
-  background: color-mix(in srgb, var(--danger-color) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger-color) 30%, transparent);
+  background: var(--danger-08);
+  border: 1px solid var(--danger-30);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
@@ -317,8 +317,8 @@
 
 /* ── Upload button — primary amber accent ────────────────────────────────── */
 .uploadButton {
-  background: color-mix(in srgb, var(--warning-color) 85%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning-color) 90%, transparent);
+  background: var(--warning-85);
+  border: 1px solid var(--warning-90);
   color: #1c1917;
   font-weight: 600;
 }

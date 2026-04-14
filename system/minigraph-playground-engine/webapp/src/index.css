@@ -19,6 +19,26 @@
   --grey-20: rgba(0, 0, 0, 0.2);
   --grey-10: rgba(0, 0, 0, 0.1);
 
+  /* ── Warning overlays ── */
+  --warning-06: color-mix(in srgb, var(--warning-color)  6%, transparent);
+  --warning-08: color-mix(in srgb, var(--warning-color)  8%, transparent);
+  --warning-10: color-mix(in srgb, var(--warning-color) 10%, transparent);
+  --warning-20: color-mix(in srgb, var(--warning-color) 20%, transparent);
+  --warning-25: color-mix(in srgb, var(--warning-color) 25%, transparent);
+  --warning-30: color-mix(in srgb, var(--warning-color) 30%, transparent);
+  --warning-60: color-mix(in srgb, var(--warning-color) 60%, transparent);
+  --warning-80: color-mix(in srgb, var(--warning-color) 80%, transparent);
+  --warning-85: color-mix(in srgb, var(--warning-color) 85%, transparent);
+  --warning-90: color-mix(in srgb, var(--warning-color) 90%, transparent);
+
+  /* ── Danger overlays ── */
+  --danger-08: color-mix(in srgb, var(--danger-color)  8%, transparent);
+  --danger-30: color-mix(in srgb, var(--danger-color) 30%, transparent);
+
+  /* ── Primary overlays ── */
+  --primary-20: color-mix(in srgb, var(--primary-color) 20%, transparent);
+  --primary-40: color-mix(in srgb, var(--primary-color) 40%, transparent);
+
   /* ── Text ── */
   --text-primary:   #0f172a;
   --text-secondary: #64748b;
@@ -59,6 +79,7 @@
   --console-bg:   var(--bg-dark);
   --console-text: #e2e8f0;
   --code-text:    #86efac;   /* green-300 — success/confirmation text on dark surfaces */
+  --error-text:   #fca5a5;   /* red-300  — error message text on dark surfaces */
 
   /* ── JSON syntax (dark background) ── */
   --json-key:    #93c5fd;   /* blue-300  — object keys */

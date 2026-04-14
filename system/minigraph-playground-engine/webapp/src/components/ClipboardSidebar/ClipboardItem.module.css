@@ -68,7 +68,7 @@
 }
 
 .removeBtn:hover {
-  background: color-mix(in srgb, var(--danger-color) 8%, transparent);
+  background: var(--danger-08);
   color: var(--danger-color);
   border-color: var(--danger-color);
 }
