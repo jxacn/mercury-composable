@@ -55,7 +55,7 @@
 }
 
 .modalPath {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono-terminal);
   font-size: 0.8rem;
   color: var(--text-secondary);
   word-break: break-all;
@@ -125,8 +125,8 @@
 
 /* Active drag-over state — amber to match the modal's accent colour */
 .dropZoneActive {
-  border-color: rgba(245, 158, 11, 0.8);
-  background: rgba(245, 158, 11, 0.06);
+  border-color: color-mix(in srgb, var(--warning-color) 80%, transparent);
+  background: color-mix(in srgb, var(--warning-color) 6%, transparent);
   color: var(--text-primary);
 }
 
@@ -142,10 +142,10 @@
 }
 
 .dropZoneText code {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono-terminal);
   font-size: 0.825rem;
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 0 3px;
 }
 
@@ -169,8 +169,8 @@
 }
 
 .browseButton:hover:not(:disabled) {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.6);
+  background: color-mix(in srgb, var(--warning-color) 8%, transparent);
+  border-color: color-mix(in srgb, var(--warning-color) 60%, transparent);
   color: var(--text-primary);
 }
 
@@ -209,7 +209,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono-terminal);
   font-size: 0.875rem;
   resize: vertical;
   min-height: 180px;
@@ -218,9 +218,9 @@
 }
 
 .textarea:focus {
-  outline: none;
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
   border-color: var(--primary-color);
-  box-shadow: var(--focus-ring);
 }
 
 .validationError {
@@ -235,8 +235,8 @@
 
 .errorBanner {
   color: var(--danger-color);
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--danger-color) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger-color) 30%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
@@ -317,15 +317,15 @@
 
 /* ── Upload button — primary amber accent ────────────────────────────────── */
 .uploadButton {
-  background: rgba(245, 158, 11, 0.85);
-  border: 1px solid rgba(245, 158, 11, 0.9);
+  background: color-mix(in srgb, var(--warning-color) 85%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning-color) 90%, transparent);
   color: #1c1917;
   font-weight: 600;
 }
 
 .uploadButton:hover:not(:disabled) {
-  background: rgba(245, 158, 11, 1);
-  border-color: #d97706;
+  background: var(--warning-color);
+  border-color: #d97706;  /* intentional darker border accent — one step below --warning-color */
 }
 
 /* ── Spinner ──────────────────────────────────────────────────────────────── */

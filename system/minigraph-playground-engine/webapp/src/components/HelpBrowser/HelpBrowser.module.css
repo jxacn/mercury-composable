@@ -138,7 +138,7 @@
 }
 
 .emptyFallback code {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--font-mono-terminal);
   font-weight: bold;
   color: var(--primary-color);
 }
@@ -182,8 +182,8 @@
 
 .helpContent code {
   padding: 0.15em 0.35em;
-  border-radius: 0.25rem;
-  font-family: 'Courier New', Courier, monospace;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono-terminal);
   font-size: 1em;
   font-weight: bolder;
   color: var(--primary-color);

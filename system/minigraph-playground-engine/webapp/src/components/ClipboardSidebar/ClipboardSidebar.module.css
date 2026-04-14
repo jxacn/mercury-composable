@@ -38,7 +38,7 @@
 }
 
 .clearBtn:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--danger-color) 8%, transparent);
 }
 
 /* ── Item list (scrollable) ── */
