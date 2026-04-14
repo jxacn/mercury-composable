@@ -299,8 +299,8 @@
 }
 
 .jsonContainer { background: transparent !important; padding: 0 !important; }
-.jsonLabel     { color: var(--json-key)    !important; }
-.jsonString    { color: var(--json-string) !important; }
-.jsonNumber    { color: var(--json-number) !important; }
-.jsonBoolean   { color: var(--json-bool)   !important; }
-.jsonNull      { color: var(--json-null)   !important; }
+.jsonLabel     { color: var(--json-key);    }
+.jsonString    { color: var(--json-string); }
+.jsonNumber    { color: var(--json-number); }
+.jsonBoolean   { color: var(--json-bool);   }
+.jsonNull      { color: var(--json-null);   }
