@@ -7,7 +7,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> *Note*: Some version numbers may be skipped to align feature set with the Node.js version.
+---
+## Version 4.4.7, 4/14/2026
+
+### Added
+
+Added Island node in tutorials
+
+### Removed
+
+N/A
+
+### Changed
+
+1. Updated MiniGraph Playground UI with directional arrows to represent relationships
+2. Added Locale.US in the parsing of floating point numbers in telemetry to preserve behavior
+   for deployments in other geographies without overriding locale at JVM level
+
+---
+## Version 4.4.6, 4/13/2026
+
+### Added
+
+Tutorial 10 and 11
+
+### Removed
+
+N/A
+
+### Changed
+
+Merged latest UI features in MiniGraph Playground
 
 ---
 ## Version 4.4.5, 4/10/2026

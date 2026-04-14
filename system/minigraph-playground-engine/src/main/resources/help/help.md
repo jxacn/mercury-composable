@@ -61,8 +61,6 @@ Tutorials
 - help tutorial 6 (iterative API fetching using the 'for_each' keyword)
 - help tutorial 7 (data mapping)
 - help tutorial 8 (JSON-Path key-value retrieval and search)
-- help tutorial 9 (writing and using reusable 'modules')
-
-Upcoming tutorials
-------------------
-- Extending graph capability with extensions
+- help tutorial 9 (reusable 'modules')
+- help tutorial 10 (graph extension)
+- help tutorial 11 (flow extension)

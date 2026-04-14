@@ -10,8 +10,8 @@ import the reusable module into the graph model to reuse it.
 To clear the previous graph session, click the Tools button in the top-right corner and click the "Stop" and "Start"
 toggle button. A new graph session will start.
 
-What is a reusable module
--------------------------
+What is a reusable module?
+--------------------------
 A module is a node that contains either the graph.js or graph.math skill. For frequently used math formula
 or boolean operation, you can save the "common logic" in one or more module nodes and export it as a common graph model.
 
@@ -217,6 +217,31 @@ compute -[finish]-> end
 
 Note that the module "addition" does not need to be connected because it is a reusable module. The node that executes
 it must be connected so that the graph executor can execute it when the graph traversal starts.
+
+Create an island to hold modules
+--------------------------------
+You will create an island node to organize one or more module nodes.
+
+```
+create node modules
+with type Island
+with properties
+skill=graph.island
+```
+
+Then you can connect the data dictionary nodes and provider node to it.
+
+```
+> connect root to modules with contains
+node root connected to modules
+> connect modules to addition with contains
+node modules connected to addition
+> list connections
+root -[calculate]-> compute
+root -[contains]-> modules
+modules -[contains]-> addition
+compute -[finish]-> end
+```
 
 Export the graph model
 ----------------------
