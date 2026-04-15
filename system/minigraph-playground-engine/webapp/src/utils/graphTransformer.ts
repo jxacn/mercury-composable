@@ -31,8 +31,10 @@ export interface GraphEdgeData extends Record<string, unknown> {
 // updates accordingly, keeping NodeResizer in sync.
 const NODE_WIDTH  = 240;
 const NODE_HEIGHT = 100; // rough estimate; ResizeObserver will correct it post-mount
-const ROW_GAP     = 60;   // vertical gap between nodes stacked in the same column
-const COL_GAP     = 120;  // horizontal gap between columns (levels)
+const ROW_GAP            = 60;   // vertical gap between nodes stacked in the same column
+const COL_GAP            = 120;  // horizontal gap between columns (levels)
+const SECTION_GAP        = 120;  // vertical gap between main flow and first segregated row
+const SEGREGATED_ROW_GAP = 80;   // vertical gap between successive segregated rows
 
 // ─── Per-type visual style ───────────────────────────────────────────────────
 // Because MinigraphNode renders as a React Fragment (no wrapper <div>),
@@ -178,38 +180,139 @@ function nodeStyle(nodeType: string): CSSProperties {
   };
 }
 
+// ─── Layout node classification ─────────────────────────────────────────────
+// Nodes are classified into one of several layout categories that determine
+// where they appear in the rendered graph.  The classification uses BOTH the
+// node's primary type AND its runtime properties (skill, connections).
+//
+// FLOW_TYPE_SET — primary types that *may* participate in the main left-to-right
+// BFS columns.  A node whose type is in this set will be placed in the flow
+// UNLESS it is an unconnected module (see classifyNode).
+//
+// MODULE_SKILLS — skill values that identify "module" nodes.  A node with one
+// of these skills that participates in zero graph connections is a reusable
+// computation block invoked via the EXECUTE keyword rather than graph traversal.
+//
+// SEGREGATED_ROW_ORDER — the ordered list of non-flow layout categories.  Each
+// category gets its own horizontal row below the main flow.  Any node that does
+// not match a named category falls into a trailing '__unknown__' catch-all row.
+const FLOW_TYPE_SET = new Set([
+  'Root', 'End', 'Fetcher', 'mapper', 'Math', 'JavaScript',
+  'Join', 'Extension', 'Island', 'Decision',
+]);
+
+const MODULE_SKILLS = new Set(['graph.math', 'graph.js']);
+
+const SEGREGATED_ROW_ORDER: readonly string[] = [
+  'Dictionary',   // data extraction contracts from API responses
+  'Provider',     // reusable API endpoint configurations
+    'Module',       // reusable computation blocks (EXECUTE keyword)
+  'Entity',       // skill-less data-holder nodes (business domain objects)
+];
+
+// ─── Node classification ────────────────────────────────────────────────────
+// Layout categories returned by classifyNode.  'flow' nodes participate in the
+// main BFS layout; all other categories are placed in segregated rows below.
+type LayoutCategory = 'flow' | 'Dictionary' | 'Provider' | 'Entity' | 'Module' | '__unknown__';
+
 /**
- * Very lightweight left-to-right topological layout.
+ * Classify a node into its layout category.
+ *
+ * Priority order (first match wins):
+ *  1. Dictionary / Provider — always segregated regardless of connections.
+ *  2. Module — has a compute skill (graph.math / graph.js) and participates
+ *     in zero graph connections.  These are reusable computation blocks
+ *     invoked by the EXECUTE keyword, not by graph traversal.
+ *  3. Flow (by type) — primary type is in FLOW_TYPE_SET.
+ *  4. Flow (by behaviour) — connected and has a skill.  Covers user-defined
+ *     types like "Compute" or "Module" that are wired into the graph.
+ *  5. Entity — no skill property; a passive data-holder representing a
+ *     business domain object (e.g. person, account).
+ *  6. __unknown__ — catch-all safety net for anything else.
+ */
+function classifyNode(
+  node: MinigraphGraphData['nodes'][number],
+  connectedAliases: Set<string>,
+): LayoutCategory {
+  const pt = node.types[0] ?? '';
+
+  if (pt === 'Dictionary') return 'Dictionary';
+  if (pt === 'Provider')   return 'Provider';
+
+  const skill = typeof node.properties.skill === 'string' ? node.properties.skill : undefined;
+  const isConnected = connectedAliases.has(node.alias);
+
+  if (skill && MODULE_SKILLS.has(skill) && !isConnected) return 'Module';
+  if (FLOW_TYPE_SET.has(pt)) return 'flow';
+  if (isConnected && skill) return 'flow';
+  if (!skill) return 'Entity';
+
+  return '__unknown__';
+}
+
+/**
+ * Left-to-right topological layout with row segregation for non-flow nodes.
  *
  * Strategy:
- *  1. Build an adjacency list from the connections.
- *  2. Assign each node a "level" (column) via BFS from root nodes.
- *  3. Within each level, stack nodes vertically.
+ *  1. Classify every node via classifyNode (uses type, skill, and connection
+ *     participation — see its JSDoc for the full priority chain).
+ *     Partition into "flow" vs segregated categories.
+ *  2. Assign flow nodes a "level" (column) via BFS from root seeds.
+ *  3. Within each level, stack flow nodes vertically, centred at y = 0.
+ *  4. Compute the bounding box of the main flow, then place each segregated
+ *     category in its own horizontal row below it, left-aligned with the flow.
  *
- * If no root is found (no entry_point and no node lacking incoming edges) all
- * nodes are placed on level 0 so the graph is still renderable.
+ * Segregated row order: Dictionary → Provider → Module → Entity → __unknown__.
+ *
+ * If no root is found (no entry_point and no flow node lacking incoming edges)
+ * all flow nodes are placed on level 0 so the graph is still renderable.
  */
 function computeLayout(
   nodes: MinigraphGraphData['nodes'],
   connections: MinigraphGraphData['connections'],
   nodeHeights: Map<string, number>,
 ): Map<string, { x: number; y: number }> {
-  // Build in-degree and adjacency maps
-  const outEdges = new Map<string, string[]>();
-  const inDegree  = new Map<string, number>();
+  // ── Step 1: Classify & partition ──────────────────────────────────────────
+  // Build the set of aliases that participate in at least one connection so
+  // classifyNode can distinguish modules (disconnected) from flow nodes.
+  const connectedAliases = new Set<string>();
+  for (const conn of connections ?? []) {
+    connectedAliases.add(conn.source);
+    connectedAliases.add(conn.target);
+  }
+
+  const flowNodes:       MinigraphGraphData['nodes'] = [];
+  const segregatedNodes: MinigraphGraphData['nodes'] = [];
+  // Cache each node's category so we don't classify twice.
+  const categoryOf = new Map<string, LayoutCategory>();
 
   for (const n of nodes) {
+    const cat = classifyNode(n, connectedAliases);
+    categoryOf.set(n.alias, cat);
+    if (cat === 'flow') flowNodes.push(n);
+    else segregatedNodes.push(n);
+  }
+
+  // ── Step 2: BFS layout for flow nodes ─────────────────────────────────────
+  const flowAliases = new Set(flowNodes.map(n => n.alias));
+  const outEdges    = new Map<string, string[]>();
+  const inDegree    = new Map<string, number>();
+
+  for (const n of flowNodes) {
     outEdges.set(n.alias, []);
     inDegree.set(n.alias, 0);
   }
 
   for (const conn of connections ?? []) {
+    // Only count edges entirely within the flow set so that connections to/from
+    // segregated nodes do not influence BFS level assignment.
+    if (!flowAliases.has(conn.source) || !flowAliases.has(conn.target)) continue;
     outEdges.get(conn.source)?.push(conn.target);
     inDegree.set(conn.target, (inDegree.get(conn.target) ?? 0) + 1);
   }
 
-  // Seeds: nodes with in-degree 0, or explicitly typed as entry_point
-  const seeds = nodes
+  // Seeds: flow nodes with in-degree 0, or explicitly typed as entry_point
+  const seeds = flowNodes
     .filter(n => inDegree.get(n.alias) === 0 || n.types.includes('entry_point'))
     .map(n => n.alias);
 
@@ -230,21 +333,21 @@ function computeLayout(
     }
   }
 
-  // Nodes that BFS never visited (disconnected) go to the last level + 1
+  // Flow nodes that BFS never visited (disconnected) go to the last level + 1
   const maxLevel = levelOf.size > 0 ? Math.max(...levelOf.values()) : 0;
-  for (const n of nodes) {
+  for (const n of flowNodes) {
     if (!levelOf.has(n.alias)) levelOf.set(n.alias, maxLevel + 1);
   }
 
-  // Group nodes by level
+  // Group flow nodes by level
   const byLevel = new Map<number, string[]>();
   for (const [alias, level] of levelOf) {
     if (!byLevel.has(level)) byLevel.set(level, []);
     byLevel.get(level)!.push(alias);
   }
 
-  // Assign pixel positions — use per-node heights to avoid overlap when nodes
-  // are taller than NODE_HEIGHT due to many edge handles.
+  // Assign pixel positions for the main flow — centred at y = 0 per column.
+  // Per-node heights prevent overlap when nodes are taller than NODE_HEIGHT.
   const positions = new Map<string, { x: number; y: number }>();
   for (const [level, aliases] of byLevel) {
     const totalHeight = aliases.reduce(
@@ -261,6 +364,46 @@ function computeLayout(
       });
       cursorY += nodeHeight + ROW_GAP;
     });
+  }
+
+  // ── Step 3: Bounding box of the main flow ──────────────────────────────────
+  // Used to anchor the vertical start of the segregated rows.
+  let mainMaxY = 0;
+  for (const [alias, pos] of positions) {
+    mainMaxY = Math.max(mainMaxY, pos.y + (nodeHeights.get(alias) ?? NODE_HEIGHT));
+  }
+  // If there are no flow nodes at all, start at y = 0 with no section gap.
+  let nextRowY = mainMaxY + (positions.size > 0 ? SECTION_GAP : 0);
+
+  // ── Step 4: Segregated rows ────────────────────────────────────────────────
+  // Group segregated nodes by their layout category (already computed in Step 1).
+  const groupMap = new Map<string, string[]>();
+  for (const key of SEGREGATED_ROW_ORDER) groupMap.set(key, []);
+  groupMap.set('__unknown__', []);
+
+  for (const n of segregatedNodes) {
+    const cat = categoryOf.get(n.alias) as Exclude<LayoutCategory, 'flow'>;
+    groupMap.get(cat)!.push(n.alias);
+  }
+
+  for (const key of [...SEGREGATED_ROW_ORDER, '__unknown__']) {
+    const aliases = (groupMap.get(key) ?? []).slice().sort(); // alphabetical for visual stability
+    if (aliases.length === 0) continue;
+
+    const startX = 0; // left-align segregated rows with the main flow
+    const rowHeight = aliases.reduce(
+      (max, alias) => Math.max(max, nodeHeights.get(alias) ?? NODE_HEIGHT),
+      0,
+    );
+
+    aliases.forEach((alias, i) => {
+      positions.set(alias, {
+        x: startX + i * (NODE_WIDTH + COL_GAP),
+        y: nextRowY,
+      });
+    });
+
+    nextRowY += rowHeight + SEGREGATED_ROW_GAP;
   }
 
   return positions;
