@@ -18,6 +18,7 @@
 
 package com.accenture.minigraph.tests;
 
+import com.accenture.minigraph.start.MainApp;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.platformlambda.core.models.AsyncHttpRequest;
@@ -44,7 +45,7 @@ class GraphTest {
 
     @BeforeAll
     static void beforeAll() {
-        AppStarter.main(new String[0]);
+        MainApp.main(new String[0]);
         var config = AppConfigReader.getInstance();
         target = "http://127.0.0.1:"+config.getProperty("rest.server.port");
     }
