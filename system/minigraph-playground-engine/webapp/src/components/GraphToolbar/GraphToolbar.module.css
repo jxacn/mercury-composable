@@ -9,10 +9,41 @@
   background: var(--bg-secondary);
 }
 
-.label {
+/* ── Name + stats group ── */
+.nameGroup {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+}
+
+.graphName {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono-terminal);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.stats {
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-family: var(--font-mono-terminal);
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease, max-width 0.3s ease;
+}
+
+.stats::before {
+  content: ' · ';
+}
+
+.nameGroup:hover .stats {
+  opacity: 1;
+  max-width: 20rem;
 }
 
 .toolbarActions {

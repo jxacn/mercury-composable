@@ -185,10 +185,6 @@ function nodeStyle(nodeType: string): CSSProperties {
 // where they appear in the rendered graph.  The classification uses BOTH the
 // node's primary type AND its runtime properties (skill, connections).
 //
-// FLOW_TYPE_SET — primary types that *may* participate in the main left-to-right
-// BFS columns.  A node whose type is in this set will be placed in the flow
-// UNLESS it is an unconnected module (see classifyNode).
-//
 // MODULE_SKILLS — skill values that identify "module" nodes.  A node with one
 // of these skills that participates in zero graph connections is a reusable
 // computation block invoked via the EXECUTE keyword rather than graph traversal.
@@ -196,11 +192,6 @@ function nodeStyle(nodeType: string): CSSProperties {
 // SEGREGATED_ROW_ORDER — the ordered list of non-flow layout categories.  Each
 // category gets its own horizontal row below the main flow.  Any node that does
 // not match a named category falls into a trailing '__unknown__' catch-all row.
-const FLOW_TYPE_SET = new Set([
-  'Root', 'End', 'Fetcher', 'mapper', 'Math', 'JavaScript',
-  'Join', 'Extension', 'Island', 'Decision',
-]);
-
 const MODULE_SKILLS = new Set(['graph.math', 'graph.js']);
 
 const SEGREGATED_ROW_ORDER: readonly string[] = [
@@ -218,33 +209,31 @@ type LayoutCategory = 'flow' | 'Dictionary' | 'Provider' | 'Entity' | 'Module' |
 /**
  * Classify a node into its layout category.
  *
+ * Connected nodes always participate in the main left-to-right BFS flow,
+ * matching the original layout behaviour.  Only orphaned (unconnected)
+ * nodes are segregated into categorised rows below the flow.
+ *
  * Priority order (first match wins):
- *  1. Dictionary / Provider — always segregated regardless of connections.
- *  2. Module — has a compute skill (graph.math / graph.js) and participates
- *     in zero graph connections.  These are reusable computation blocks
- *     invoked by the EXECUTE keyword, not by graph traversal.
- *  3. Flow (by type) — primary type is in FLOW_TYPE_SET.
- *  4. Flow (by behaviour) — connected and has a skill.  Covers user-defined
- *     types like "Compute" or "Module" that are wired into the graph.
- *  5. Entity — no skill property; a passive data-holder representing a
- *     business domain object (e.g. person, account).
- *  6. __unknown__ — catch-all safety net for anything else.
+ *  1. Connected — participates in at least one edge → flow.
+ *  2. Dictionary / Provider — orphaned type-based segregation.
+ *  3. Module — has a compute skill (graph.math / graph.js) with no
+ *     connections.  Reusable computation blocks invoked via EXECUTE.
+ *  4. Entity — no skill property; a passive data-holder node.
+ *  5. __unknown__ — catch-all safety net for anything else.
  */
 function classifyNode(
   node: MinigraphGraphData['nodes'][number],
   connectedAliases: Set<string>,
 ): LayoutCategory {
-  const pt = node.types[0] ?? '';
+  const isConnected = connectedAliases.has(node.alias);
+  if (isConnected) return 'flow';
+
+  const pt    = node.types[0] ?? '';
+  const skill = typeof node.properties.skill === 'string' ? node.properties.skill : undefined;
 
   if (pt === 'Dictionary') return 'Dictionary';
   if (pt === 'Provider')   return 'Provider';
-
-  const skill = typeof node.properties.skill === 'string' ? node.properties.skill : undefined;
-  const isConnected = connectedAliases.has(node.alias);
-
-  if (skill && MODULE_SKILLS.has(skill) && !isConnected) return 'Module';
-  if (FLOW_TYPE_SET.has(pt)) return 'flow';
-  if (isConnected && skill) return 'flow';
+  if (skill && MODULE_SKILLS.has(skill)) return 'Module';
   if (!skill) return 'Entity';
 
   return '__unknown__';

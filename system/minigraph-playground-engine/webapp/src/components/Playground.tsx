@@ -296,6 +296,15 @@ export default function Playground({ config }: PlaygroundProps) {
     bus,
   );
 
+  // ── Resolved graph display name ────────────────────────────────────────────
+  // Priority: root node's "name" property (from graph data) → defaultName from
+  // the save-name hook (lastSavedName → importedName → untitled-{n}).
+  const graphDisplayName = useMemo(() => {
+    const rootNode = graphData?.nodes.find(n => n.types.includes('Root'));
+    const rootName = typeof rootNode?.properties?.name === 'string' ? rootNode.properties.name : undefined;
+    return rootName ?? graphSaveName;
+  }, [graphData, graphSaveName]);
+
   // ── Saved graph workflow ──────────────────────────────────────────────────
   // Note: must be called AFTER useAutoGraphRefresh — both listen on graph.link
   // and ProtocolBus fires listeners in insertion order.
@@ -473,6 +482,7 @@ export default function Playground({ config }: PlaygroundProps) {
             onFormat={handleFormatPayload}
             onUpload={supportsUpload ? ws.uploadPayload : undefined}
             graphData={graphData}
+            graphName={graphDisplayName}
             activeTab={rightTab}
             onTabChange={setRightTab}
             onGraphRenderError={(msg) => addToast(msg, 'error')}

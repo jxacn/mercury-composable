@@ -22,6 +22,8 @@ import styles from './GraphView.module.css';
 
 interface GraphViewProps {
   graphData:       MinigraphGraphData | null;
+  /** Resolved display name for the graph (shown in the toolbar). */
+  graphName?:      string;
   /** Called after the raw graph JSON is successfully copied to the clipboard. */
   onCopySuccess?:  () => void;
   /** Called when the clipboard write fails. */
@@ -36,7 +38,7 @@ interface GraphViewProps {
 const EMPTY_NODES: Node<GraphNodeData>[]  = [];
 const EMPTY_EDGES: Edge<GraphEdgeData>[]  = [];
 
-export default function GraphView({ graphData, onCopySuccess, onCopyError, onRenderError, isRefreshing = false, onClipNode }: GraphViewProps) {
+export default function GraphView({ graphData, graphName, onCopySuccess, onCopyError, onRenderError, isRefreshing = false, onClipNode }: GraphViewProps) {
 
   // ── Context menu state ──────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{
@@ -142,6 +144,7 @@ export default function GraphView({ graphData, onCopySuccess, onCopyError, onRen
       <div className={styles.graphWrapper} aria-busy={isRefreshing}>
         <GraphToolbar
           graphData={graphData}
+          graphName={graphName}
           onCopySuccess={onCopySuccess}
           onCopyError={onCopyError}
         />

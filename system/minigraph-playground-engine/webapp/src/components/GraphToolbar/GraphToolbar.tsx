@@ -4,6 +4,8 @@ import styles from './GraphToolbar.module.css';
 
 interface GraphToolbarProps {
   graphData:      MinigraphGraphData | null;
+  /** Resolved display name for the graph (root node name or fallback). */
+  graphName?:     string;
   onCopySuccess?: () => void;
   onCopyError?:   () => void;
   /** Optional extra action buttons rendered before the copy button. */
@@ -12,6 +14,7 @@ interface GraphToolbarProps {
 
 export default function GraphToolbar({
   graphData,
+  graphName,
   onCopySuccess,
   onCopyError,
   extraActions,
@@ -29,11 +32,14 @@ export default function GraphToolbar({
 
   return (
     <div className={styles.toolbar}>
-      <span className={styles.label}>
-        {nodeCount} node{nodeCount !== 1 ? 's' : ''}
-        {' · '}
-        {connectionCount} connection{connectionCount !== 1 ? 's' : ''}
-      </span>
+      <div className={styles.nameGroup}>
+        <span className={styles.graphName}>{graphName ?? 'Untitled'}</span>
+        <span className={styles.stats}>
+          {nodeCount} node{nodeCount !== 1 ? 's' : ''}
+          {' · '}
+          {connectionCount} connection{connectionCount !== 1 ? 's' : ''}
+        </span>
+      </div>
 
       <div className={styles.toolbarActions}>
         {extraActions}
