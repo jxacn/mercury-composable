@@ -30,13 +30,15 @@ const EXPAND_FN: Record<ExpandMode, (level: number) => boolean> = {
 
 interface GraphDataViewProps {
   graphData:       MinigraphGraphData | null;
+  /** Resolved display name for the graph (shown in the toolbar). */
+  graphName?:      string;
   /** Called after the raw graph JSON is successfully copied to the clipboard. */
   onCopySuccess?:  () => void;
   /** Called when the clipboard write fails. */
   onCopyError?:    () => void;
 }
 
-export default function GraphDataView({ graphData, onCopySuccess, onCopyError }: GraphDataViewProps) {
+export default function GraphDataView({ graphData, graphName, onCopySuccess, onCopyError }: GraphDataViewProps) {
   const [expandMode, setExpandMode] = useState<ExpandMode>('all');
 
   if (!graphData) {
@@ -57,6 +59,7 @@ export default function GraphDataView({ graphData, onCopySuccess, onCopyError }:
     <div className={styles.root}>
       <GraphToolbar
         graphData={graphData}
+        graphName={graphName}
         onCopySuccess={onCopySuccess}
         onCopyError={onCopyError}
         extraActions={

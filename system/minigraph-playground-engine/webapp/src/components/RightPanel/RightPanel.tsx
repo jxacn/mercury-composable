@@ -18,6 +18,8 @@ interface RightPanelProps {
   onFormat:       () => void;
   onUpload?:      () => void;
   graphData:      MinigraphGraphData | null;
+  /** Resolved display name for the graph (shown in toolbar). */
+  graphName?:     string;
   activeTab:      RightTab;
   onTabChange:    (tab: RightTab) => void;
   onGraphRenderError?: (message: string) => void;
@@ -53,6 +55,7 @@ export default function RightPanel({
   onFormat,
   onUpload,
   graphData,
+  graphName,
   activeTab,
   onTabChange,
   onGraphRenderError,
@@ -137,6 +140,7 @@ export default function RightPanel({
         >
           <GraphView
             graphData={graphData}
+            graphName={graphName}
             onRenderError={onGraphRenderError}
             isRefreshing={isGraphRefreshing}
             onCopySuccess={onGraphDataCopySuccess}
@@ -156,6 +160,7 @@ export default function RightPanel({
         >
           <GraphDataView
             graphData={graphData}
+            graphName={graphName}
             onCopySuccess={onGraphDataCopySuccess}
             onCopyError={onGraphDataCopyError}
           />

@@ -2,7 +2,7 @@
 
 **Audience:** Engineers inheriting or maintaining this webapp  
 **Branch:** `feature/playground`  
-**Last updated:** April 10, 2026
+**Last updated:** April 16, 2026
 
 > **Note on line-number citations:** All `[Lxx]` anchors in this document are approximate and reflect the state of the codebase at the last documentation update. The codebase continues to grow; use the cited symbols and function names to locate code rather than relying on line numbers literally.
 
@@ -161,19 +161,25 @@ Switching between the Minigraph and JSON-Path playgrounds does **not** close eit
 - Nodes are **resizable** (NodeResizer) and can be re-arranged interactively
 - A **minimap** provides navigation for large graphs
 - A **refreshing overlay** (spinner) is displayed during background re-fetches without clearing the existing graph
+- The **graph toolbar** displays a resolved graph name (root node name → save-name fallback → "Untitled"), with node/connection counts revealed on hover
+- **Orphan node segregation** — nodes not participating in any connection are classified by type and placed in horizontal rows below the main flow: Dictionary → Provider → Module → Entity → unknown catch-all
+- **Cycle detection & back-edge routing** — cycles in the graph are detected via iterative DFS; back-edges (edges pointing from a deeper level to a shallower one) are excluded from BFS level assignment so the layout doesn't loop infinitely. Back-edges are still rendered: they exit from the **left** side of the source node and enter the **right** side of the target node (the reverse of forward edges), producing a natural backward-arcing bezier curve. Handles on each side are sorted by peer y-position and interleaved (forward + back-edge) to prevent crossing
 
 **Key code locations:**
 - `src/utils/graphTypes.ts` [L1–L47](../src/utils/graphTypes.ts#L1) — `MinigraphGraphData`, `MinigraphNode`, `MinigraphConnection` types + `isMinigraphGraphData()` type guard
 - `src/hooks/useGraphData.ts` [L7–L20](../src/hooks/useGraphData.ts#L7) — `normalizeRightTab()`: validates the persisted tab value against the current playground's `tabs` list and migrates stale entries (for example legacy `"preview"`) to a safe fallback before render
 - `src/hooks/useGraphData.ts` [L66–L144](../src/hooks/useGraphData.ts#L66) — normalized right-tab state + initial-load path: reads `storedRightTab` from localStorage, derives a safe `rightTab`, writes the normalized value back when migration is needed, then `fetch(pinnedGraphPath)` → `setGraphData(json)` → `setRightTab('graph')`; clears `graphData` to `null` on path change
 - `src/hooks/useGraphData.ts` [L149–L189](../src/hooks/useGraphData.ts#L149) — `refetchGraph()`: overlay-mode re-fetch; does NOT clear `graphData` (stale graph stays visible), sets `isRefreshing = true`
-- `src/utils/graphTransformer.ts` [L61–L76](../src/utils/graphTransformer.ts#L61) — `NODE_ACCENT` colour map + `nodeStyle()` applying `--node-accent` CSS custom property
-- `src/utils/graphTransformer.ts` [L83–L157](../src/utils/graphTransformer.ts#L83) — `computeLayout()`: BFS topological layout (levels = columns, stacked vertically within each level)
-- `src/utils/graphTransformer.ts` [L163–L205](../src/utils/graphTransformer.ts#L163) — `transformGraphData()`: converts `MinigraphGraphData` → ReactFlow `nodes[]` + `edges[]`
-- `src/components/GraphView/NodeTypes.tsx` [L9–L16](../src/components/GraphView/NodeTypes.tsx#L9) — `TYPE_META` icon/label map per node type
-- `src/components/GraphView/NodeTypes.tsx` [L55–L88](../src/components/GraphView/NodeTypes.tsx#L55) — `MinigraphNode`: renders as `<Fragment>` (no wrapper div), `NodeResizer` + `Handle` + content as siblings (L60–L86)
-- `src/components/GraphView/NodeTypes.tsx` [L96–L103](../src/components/GraphView/NodeTypes.tsx#L96) — `nodeTypes` export map used by `<ReactFlow nodeTypes={nodeTypes}>`
-- `src/components/GraphView/GraphView.tsx` [L115–L157](../src/components/GraphView/GraphView.tsx#L115) — `<ReactFlow>` with `fitView`, `<Controls>`, `<MiniMap>` (L130), and `isRefreshing` overlay (L144–L152)
+- `src/utils/graphTransformer.ts` — `NODE_ACCENT` colour map + `nodeStyle()` applying `--node-accent` CSS custom property
+- `src/utils/graphTransformer.ts` — `classifyNode()`: classifies each node into a `LayoutCategory` — connected nodes always go to `'flow'`; orphaned nodes are segregated into `'Dictionary'`, `'Provider'`, `'Module'`, `'Entity'`, or `'__unknown__'`
+- `src/utils/graphTransformer.ts` — `computeLayout()`: BFS topological layout with DFS cycle detection and segregated rows for orphan nodes; returns `{ positions, levelOf }`
+- `src/utils/graphTransformer.ts` — `transformGraphData()`: converts `MinigraphGraphData` → ReactFlow `nodes[]` + `edges[]`; classifies edges as forward or backward using `levelOf`, builds per-side handle arrays sorted by peer y-position with forward and back-edge handles interleaved
+- `src/components/GraphView/NodeTypes.tsx` [L9–L22](../src/components/GraphView/NodeTypes.tsx#L9) — `TYPE_META` icon/label map per node type
+- `src/components/GraphView/NodeTypes.tsx` — `MinigraphNode`: renders as `<Fragment>` (no wrapper div); `NodeResizer` + forward target handles (left) + back-edge source handles (left) + content + forward source handles (right) + back-edge target handles (right) as siblings
+- `src/components/GraphView/NodeTypes.tsx` — `nodeTypes` export map used by `<ReactFlow nodeTypes={nodeTypes}>`
+- `src/components/GraphView/GraphView.tsx` — `<ReactFlow>` with `fitView`, `<Controls>`, `<MiniMap>`, and `isRefreshing` overlay; accepts `graphName` prop and threads it to `GraphToolbar`
+- `src/components/GraphToolbar/GraphToolbar.tsx` — displays `graphName` prominently with hover-reveal node/connection stats; accepts `graphName?` prop
+- `src/components/Playground.tsx` — `graphDisplayName` memo: resolves root node's `name` property → `graphSaveName` fallback; threaded via `RightPanel` → `GraphView` / `GraphDataView` → `GraphToolbar`
 
 ---
 
@@ -457,7 +463,7 @@ webapp/
 │   │   ├── CommandInput/         # Text input + send button
 │   │   ├── GraphView/            # ReactFlow canvas + NodeTypes + ErrorBoundary
 │   │   ├── GraphDataView/        # Raw JSON viewer for graph model
-│   │   ├── GraphToolbar/         # Copy/download toolbar for graph panel
+│   │   ├── GraphToolbar/         # Graph name display + copy toolbar for graph panel
 │   │   ├── GraphSaveButton/      # Inline save-form button in header
 │   │   ├── SavedGraphsMenu/      # Dropdown list of saved graph bookmarks
 │   │   │   ├── MockUploadModal/      # Modal dialog for mock-data JSON upload
@@ -468,7 +474,7 @@ webapp/
 │   └── utils/
 │       ├── messageParser.ts      # ★ Message classification & pattern matching (extractGraphExportSuccess, detectGraphExportFailure)
 │       ├── localHelpCommand.ts   # resolveBundledHelpTopic — pure local-help resolver
-│       ├── graphTransformer.ts   # Backend JSON → ReactFlow nodes + edges
+│       ├── graphTransformer.ts   # Backend JSON → ReactFlow nodes + edges (BFS layout, cycle detection, orphan segregation, back-edge routing)
 │       ├── graphTypes.ts         # TypeScript interfaces + type guard
 │       ├── validators.ts         # JSON/XML payload validation + formatting
 │       ├── urls.ts               # WebSocket & HTTP URL construction
@@ -527,10 +533,10 @@ Each Playground instance:
   │   │                       classificationMap threaded down for render-time lookups
   │   └── CommandInput      ← textarea + send button + history nav
   │
-  ├── RightPanel (tabbed: payload / graph / graph-data)
+  ├── RightPanel (tabbed: payload / graph / graph-data; receives graphName)
   │   ├── PayloadEditor     ← textarea + validation (JSON-Path only)
-  │   ├── GraphView         ← ReactFlow canvas (onClipNode wired when supportsClipboard)
-  │   ├── GraphDataView     ← raw JSON tree of graph model
+  │   ├── GraphView         ← ReactFlow canvas (receives graphName; onClipNode wired when supportsClipboard)
+  │   ├── GraphDataView     ← raw JSON tree of graph model (receives graphName)
   │   └── HelpBrowser       ← bundled help panel (resizable overlay — not a tab)
   │
   ├── MockUploadModal       ← native <dialog>; JSON paste / drop / browse; POST
@@ -667,6 +673,7 @@ Key responsibilities:
 | Mock-upload modal path | `useState<string \| null>(null)` — `null` = closed; non-null = open for that specific POST endpoint |
 | Modal trigger element | `useRef<HTMLElement \| null>(null)` — captures `document.activeElement` before open; `.focus()` restored on close via `setTimeout` |
 | Successful upload paths | `useState<Set<string>>(new Set())` — keyed by POST path; drives ✅ badge on invitation rows; session-only (cleared with `clearMessages`) |
+| Graph display name | `graphDisplayName = useMemo(...)` — resolves root node's `name` property → `graphSaveName` fallback; threaded as `graphName` prop to `RightPanel` → `GraphView` / `GraphDataView` → `GraphToolbar` |
 | Graph save-form name | `useGraphSaveName(storageKey, bus)` — provides `defaultName`, `setLastSavedName`, `resetName`; see §3.13 |
 | Deferred graph export | `pendingSaveRef = useRef<PendingSave | null>(null)` where `PendingSave = { graphName, timeoutId }` — armed when connected save is sent; confirmed by `graph.exported` (name-matched), rejected by `graph.export.failed`, timeout (10 s), or disconnect |
 | Deferred JSON-Path send | `pendingJsonTransferRef = useRef<{ wsPath, json } | null>(null)` — last-write-wins mailbox; overwritten on each send while JSON-Path is `'connecting'`; consumed by a `useEffect` watching the slot once `phase === 'connected'` |
@@ -717,8 +724,8 @@ The four possible tabs:
 | Tab key | Component | When shown |
 |---|---|---|
 | `'payload'` | `PayloadEditor` | JSON-Path playground |
-| `'graph'` | `GraphView` | Both playgrounds |
-| `'graph-data'` | `GraphDataView` | Both playgrounds |
+| `'graph'` | `GraphView` | Both playgrounds (receives `graphName` prop) |
+| `'graph-data'` | `GraphDataView` | Both playgrounds (receives `graphName` prop) |
 
 The help panel is **not** a tab. It is a resizable overlay rendered inside `RightPanel` when `supportsHelp` is true and `helpOpen` is set. Its split position and maximised state are persisted in `localStorage`.
 
@@ -750,20 +757,35 @@ The journey from a WebSocket message to a rendered graph has four stages:
 
 Defines `MinigraphGraphData`, `MinigraphNode`, `MinigraphConnection`, and `MinigraphRelation`. The exported `isMinigraphGraphData(value)` type guard is called on every REST response before setting state — it guards against malformed JSON without throwing.
 
-#### `src/utils/graphTransformer.ts` — Layout algorithm
+#### `src/utils/graphTransformer.ts` — Layout algorithm & edge routing
 
-Uses a **BFS topological layout**:
-1. Build adjacency lists and in-degree counts from `connections`
-2. Identify seed nodes: in-degree 0 or typed as `Root`
-3. BFS assigns a column (level) to each node — a node's level is always ≥ its predecessor's level + 1
-4. Within each level, nodes are stacked vertically with equal spacing
-5. Disconnected nodes are placed in a trailing column
+The transformer performs two major jobs: **layout** (assigning pixel positions) and **edge routing** (assigning per-connection handle IDs with correct side placement).
+
+**Layout — `computeLayout()`** returns `{ positions, levelOf }`:
+
+1. **Classify & partition:** Every node is classified via `classifyNode()` into a `LayoutCategory`. Connected nodes (participating in at least one edge) always go to `'flow'`. Orphaned nodes are segregated by type: `'Dictionary'`, `'Provider'`, `'Module'` (has `graph.math` / `graph.js` skill), `'Entity'` (no skill), or `'__unknown__'` catch-all.
+2. **Cycle detection (iterative DFS):** Before BFS, a DFS from all seed/flow nodes identifies back-edges (edges to an ancestor in the DFS tree). These are recorded in a `backEdges` set and excluded from the BFS queue to prevent infinite looping on cycles.
+3. **BFS level assignment:** Seeds (in-degree 0 or `entry_point` typed) start at level 0. BFS assigns each flow node a column, skipping back-edges. A node's level is always > its predecessor's level.
+4. **Vertical stacking:** Within each level, flow nodes are stacked vertically centred at y = 0 with per-node heights preventing overlap.
+5. **Segregated rows:** After computing the main flow bounding box, each non-flow category gets its own horizontal row below the flow in order: Dictionary → Provider → Module → Entity → __unknown__. Nodes within each row are sorted alphabetically for visual stability.
+
+**Edge routing — inside `transformGraphData()`:**
+
+After layout, each connection is classified as forward or backward by comparing source/target levels from `levelOf`. Forward edges exit the **right** side of the source and enter the **left** side of the target (normal left-to-right flow). Back-edges reverse this: they exit the **left** side of the source and enter the **right** side of the target, producing a natural backward-arcing bezier curve.
+
+Handles on each node side (left and right) are collected, sorted by the y-position of the connected peer node, and assigned interleaved handle IDs (forward + back-edge mixed together). This y-sorting prevents edge crossing: connections to higher peers get higher handle slots.
+
+The `GraphNodeData` interface carries four handle arrays: `sourceHandles` (right, forward out), `targetHandles` (left, forward in), `backSourceHandles` (left, back-edge out), and `backTargetHandles` (right, back-edge in).
 
 Node styles are applied via `node.style` (not CSS classes) using the CSS custom property `--node-accent` for per-type accent colours. The full set of recognised type names is `Root`, `End`, `Fetcher`, `mapper`, `Math`, `JavaScript`, `Provider`, `Dictionary`, `Join`, `Extension`, `Island`, `Decision` — unknown types fall back to a neutral grey accent. This is the pattern required by ReactFlow's `NodeResizer` — having no inner wrapper div means the RF wrapper element *is* the visual shell.
 
 #### `src/components/GraphView/NodeTypes.tsx` — Custom node
 
-`MinigraphNode` renders as a **React Fragment** (no wrapper div). `NodeResizer`, handles, and content are top-level siblings. This avoids all the sizing workarounds that a nested div structure requires. The `nodeTypes` map exported here is passed directly to `<ReactFlow nodeTypes={nodeTypes}>`.
+`MinigraphNode` renders as a **React Fragment** (no wrapper div). Top-level siblings in order: `NodeResizer`, forward target handles (left), back-edge source handles (left), content div, forward source handles (right), back-edge target handles (right). This avoids all the sizing workarounds that a nested div structure requires. The `nodeTypes` map exported here is passed directly to `<ReactFlow nodeTypes={nodeTypes}>`.
+
+#### `src/components/GraphToolbar/GraphToolbar.tsx` — Graph name & stats
+
+Displays a resolved `graphName` prop prominently (falls back to "Untitled"). Node and connection counts are shown as hover-reveal stats (CSS transition: opacity + max-width on `.nameGroup:hover`). The `graphName` prop is threaded from `Playground.tsx` → `RightPanel` → `GraphView` / `GraphDataView` → `GraphToolbar`.
 
 #### `src/components/GraphView/GraphView.tsx` — Clipboard context menu
 
@@ -897,7 +919,7 @@ The `startsWith('node ')` prefix guard is critical — it prevents false positiv
 
 #### `src/utils/graphTransformer.ts`
 
-Converts `MinigraphGraphData` to ReactFlow `nodes[]` and `edges[]`. See §6.7 for the layout algorithm detail.
+Converts `MinigraphGraphData` to ReactFlow `nodes[]` and `edges[]`. Includes node classification (`classifyNode`), BFS layout with DFS cycle detection, orphan-node segregated rows, and back-edge handle routing. See §6.7 for the full layout algorithm and edge routing detail.
 
 #### `src/utils/urls.ts`
 
@@ -1331,6 +1353,7 @@ WS echo: "> import graph from other-graph"
 | Clipboard items | `ClipboardContext` reducer | IndexedDB | Hydrated at mount; cross-tab sync via BroadcastChannel |
 | `clipboardOpen` | `useLocalStorage` in `Playground` | `localStorage` | Key `'clipboard-sidebar-open'`; persists sidebar open/closed state |
 | Duplicate dialog state | `useState` in `Playground` | Memory only | `null` = closed; non-null = `{ pendingItem, existingItem }` |
+| Graph display name | `useMemo` in `Playground` | Memory only | Derived: root node `name` property → `graphSaveName` fallback; threaded as `graphName` prop |
 | Graph data | `useState` in `useGraphData` | Memory only | |
 | Right panel tab | `useLocalStorage` in `useGraphData` | `localStorage` | Keyed per playground; normalized against the current `tabs` array before render so removed legacy values are migrated to a valid tab |
 | Is refreshing | `useState` in `useGraphData` | Memory only | |
@@ -1421,6 +1444,7 @@ Source maps are enabled for production (`sourcemap: true`).
 2. Add the type to `TYPE_META` in `NodeTypes.tsx` (gives it an icon and label)
 3. Add the type to the `nodeTypes` export in `NodeTypes.tsx` (maps it to `MinigraphNode`)
 4. (Optionally) add it to the MiniMap `colorMap` in `GraphView.tsx`
+5. If the new type should be **segregated when orphaned** (not connected to any edge), add it to `SEGREGATED_ROW_ORDER` in `graphTransformer.ts` and handle it in `classifyNode()`. Connected nodes of any type always participate in the main BFS flow regardless of classification
 
 ### Add a new mutation command to auto-refresh
 

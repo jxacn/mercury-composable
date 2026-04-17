@@ -92,6 +92,19 @@ function MinigraphNode({ data, isConnectable, selected }: NodeProps<MinigraphRFN
         />
       ))}
 
+      {/* Back-edge source handles (left) — outgoing back-edges exit from the left side. */}
+      {data.backSourceHandles.map(({ id, offset }) => (
+        <Handle
+          key={id}
+          id={id}
+          type="source"
+          position={Position.Left}
+          isConnectable={isConnectable}
+          className={styles.edgeHandle}
+          style={{ top: `calc(50% + ${offset}px)` }}
+        />
+      ))}
+
       {/*
         * Content container — fills the React Flow wrapper (which carries the
         * border/background via node.style) and clips its own overflow.
@@ -115,6 +128,19 @@ function MinigraphNode({ data, isConnectable, selected }: NodeProps<MinigraphRFN
           key={id}
           id={id}
           type="source"
+          position={Position.Right}
+          isConnectable={isConnectable}
+          className={styles.edgeHandle}
+          style={{ top: `calc(50% + ${offset}px)` }}
+        />
+      ))}
+
+      {/* Back-edge target handles (right) — incoming back-edges enter from the right side. */}
+      {data.backTargetHandles.map(({ id, offset }) => (
+        <Handle
+          key={id}
+          id={id}
+          type="target"
           position={Position.Right}
           isConnectable={isConnectable}
           className={styles.edgeHandle}
