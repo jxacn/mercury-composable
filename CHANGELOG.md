@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-The "live" parameter for "dry-run" of graph model is not longer relevant after code refactoring
+The "live" parameter for "dry-run" of graph model is no longer relevant after code refactoring
 
 ### Changed
 
