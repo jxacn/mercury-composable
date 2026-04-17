@@ -336,6 +336,131 @@ the parameters where parameters.query, body and cookies are optional.
 | body             | HTTP request body for PUT, POST and PATCH | {"hello": "world"}                    |
 | cookies          | Cookie key-value                          | cookies.session-id=12345              |
 
+## Calling a public endpoint example
+
+The following pair of flows demonstrates calling an external public echo endpoint using GET and POST.
+They can serve as a starting template for any outbound HTTP integration.
+
+**GET example** — forwards an optional `message` query parameter and returns the echo response:
+
+```yaml
+flow:
+  id: 'ping-external'
+  description: 'Ping a public echo endpoint via AsyncHttpClient and return the response'
+  ttl: 15s
+  exception: 'ping.exception'
+
+first.task: 'ping.call'
+
+tasks:
+  - name: 'ping.call'
+    input:
+      - 'text(https://postman-echo.com) -> host'
+      - 'text(/get) -> url'
+      - 'text(GET) -> method'
+      - 'text(application/json) -> headers.accept'
+      - 'input.query_parameter.message -> parameters.query.message'
+    process: 'async.http.request'
+    output:
+      - 'text(application/json) -> output.header.content-type'
+      - 'result -> output.body'
+    description: 'GET https://postman-echo.com/get and return the echo response'
+    execution: end
+
+  - name: 'ping.exception'
+    input:
+      - 'error.code -> status'
+      - 'error.message -> message'
+    process: 'v1.hello.exception'
+    output:
+      - 'result.status -> output.status'
+      - 'result -> output.body'
+    description: 'Return error details to the caller'
+    execution: end
+```
+
+**POST example** — forwards the caller's request body and returns the echo response:
+
+```yaml
+flow:
+  id: 'ping-external-post'
+  description: 'POST a JSON body to a public echo endpoint via AsyncHttpClient and return the response'
+  ttl: 15s
+  exception: 'ping.post.exception'
+
+first.task: 'ping.post.call'
+
+tasks:
+  - name: 'ping.post.call'
+    input:
+      - 'text(https://postman-echo.com) -> host'
+      - 'text(/post) -> url'
+      - 'text(POST) -> method'
+      - 'text(application/json) -> headers.content-type'
+      - 'text(application/json) -> headers.accept'
+      - 'input.body -> body'
+    process: 'async.http.request'
+    output:
+      - 'text(application/json) -> output.header.content-type'
+      - 'result -> output.body'
+    description: 'POST request body to https://postman-echo.com/post and return the echo response'
+    execution: end
+
+  - name: 'ping.post.exception'
+    input:
+      - 'error.code -> status'
+      - 'error.message -> message'
+    process: 'v1.hello.exception'
+    output:
+      - 'result.status -> output.status'
+      - 'result -> output.body'
+    description: 'Return error details to the caller'
+    execution: end
+```
+
+Note that `host` must be the origin only (scheme + domain, no path), and `url` is the path portion.
+Query parameters can be forwarded from the caller via `input.query_parameter.<name>` or set as
+constants using `text(value) -> parameters.query.<name>`.
+
+## HTTP trace logging
+
+`AsyncHttpClient` emits DEBUG-level log entries for every outbound HTTP request and its corresponding
+response. Each direction is a single, complete log entry — the request is logged before the call is
+made and the response after the full body has been received and assembled.
+
+A request log entry looks like:
+
+```
+DEBUG AsyncHttpClient -
+>>> POST https://postman-echo.com/post
+    content-type: application/json
+    accept: application/json
+    body: {"message":"hello","from":"curl"}
+```
+
+A response log entry looks like:
+
+```
+DEBUG AsyncHttpClient -
+<<< 200
+    content-type: application/json; charset=utf-8
+    content-length: 418
+    body: {"args":{},"data":{"from":"curl","message":"hello"},...,"url":"https://postman-echo.com/post"}
+```
+
+Logging is controlled by the `AsyncHttpClient` logger level. Add the following to your `log4j2.xml`:
+
+```xml
+<logger name="org.platformlambda.automation.http.AsyncHttpClient"
+        level="${env:HTTP_TRACE_LEVEL:-INFO}" additivity="false">
+    <AppenderRef ref="Console" />
+</logger>
+```
+
+Set the `HTTP_TRACE_LEVEL` environment variable to `DEBUG` to enable tracing, or leave it unset
+(defaults to `INFO`) to silence it. No code change or restart of the logging framework is needed —
+only the environment variable controls the output.
+
 ## Starting a flow programmatically
 
 To start an "event" flow from a unit test, you may use the helper class "FlowExecutor" under the "Event Script" module.

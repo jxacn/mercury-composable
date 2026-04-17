@@ -174,6 +174,9 @@ public class AsyncHttpClient implements TypedLambdaFunction<EventEnvelope, Void>
         validateUrl(request);
         String uri = request.getFinalizedUrl();
         po.annotateTrace(DESTINATION, request.getTargetHost() + getRawUrl(uri));
+        if (log.isDebugEnabled()) {
+            logHttpRequest(request, uri);
+        }
         HttpClient client = HttpClient.create()
                             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
                             .headers(h -> updateHttpHeaders(po, request, h));
@@ -453,6 +456,35 @@ public class AsyncHttpClient implements TypedLambdaFunction<EventEnvelope, Void>
         }
     }
 
+    private void logHttpRequest(AsyncHttpRequest request, String uri) {
+        var sb = new StringBuilder();
+        sb.append("\n>>> ").append(request.getMethod()).append(' ')
+          .append(request.getTargetHost()).append(uri).append('\n');
+        request.getHeaders().forEach((k, v) ->
+                sb.append("    ").append(k).append(": ").append(v).append('\n'));
+        Object body = request.getBody();
+        if (body instanceof byte[] b) {
+            sb.append("    body: [").append(b.length).append(" bytes]\n");
+        } else if (body instanceof Map || body instanceof List) {
+            sb.append("    body: ")
+              .append(SimpleMapper.getInstance().getMapper().writeValueAsString(body)).append('\n');
+        } else if (body instanceof String text && !text.isEmpty()) {
+            sb.append("    body: ").append(text).append('\n');
+        }
+        log.debug(sb.toString());
+    }
+
+    private void logHttpResponse(EventEnvelope response, byte[] b) {
+        var sb = new StringBuilder();
+        sb.append("\n<<< ").append(response.getStatus()).append('\n');
+        response.getHeaders().forEach((k, v) ->
+                sb.append("    ").append(k).append(": ").append(v).append('\n'));
+        if (b != null && b.length > 0) {
+            sb.append("    body: ").append(Utility.getInstance().getUTF(b)).append('\n');
+        }
+        log.debug(sb.toString());
+    }
+
     private class HttpResponseHandler {
         private final Utility util = Utility.getInstance();
         private final CustomContentTypeResolver resolver = CustomContentTypeResolver.getInstance();
@@ -535,6 +567,9 @@ public class AsyncHttpClient implements TypedLambdaFunction<EventEnvelope, Void>
         }
 
         private void sendFixedLengthResponse(String resContentType, EventEnvelope response, byte[] b) {
+            if (log.isDebugEnabled()) {
+                logHttpResponse(response, b);
+            }
             if (resContentType != null) {
                 if (resContentType.startsWith(APPLICATION_JSON)) {
                     sendJsonResponse(response, b);

@@ -123,6 +123,7 @@ virtual threads.
 |-----|------|---------|-------------|
 | `async.http.temp` | `String` (path) | `/tmp/async-http-temp` | Temporary folder used to buffer large async HTTP response bodies. |
 | `http.client.connection.timeout` | `int` (ms) | `5000` | Connection timeout in milliseconds for the built-in async HTTP client. |
+| `HTTP_TRACE_LEVEL` | `String` (env var) | `INFO` | Set to `DEBUG` to enable full HTTP request and response trace logging (method, URL, headers, body) via the `AsyncHttpClient` logger. Set to `INFO` or leave unset to silence. |
 
 ---
 
