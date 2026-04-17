@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## Version 4.4.8, 4/16/2026
+
+### Added
+
+1. Added keywords "NEXT" and "DELAY" to graph.math and graph.js statement processing in MiniGraph
+2. Support of custom exception handler in MiniGraph
+3. Graph traversal loop detection
+4. Tutorial 12 and 13
+5. Unit tests to cover all tutorial 1 to 13
+
+### Removed
+
+The "live" parameter for "dry-run" of graph model is not longer relevant after code refactoring
+
+### Changed
+
+1. Streamlined graph.math, graph.js, graph.api.fetcher and graph.extension
+2. Update bouncy-castle bcpkix-jdk18on to version 1.84 for certificate tests in platform-core
+
+---
 ## Version 4.4.7, 4/14/2026
 
 ### Added
