@@ -10,6 +10,10 @@ export interface GraphNodeData extends Record<string, unknown> {
   properties: Record<string, unknown>;
   sourceHandles: GraphHandleData[];
   targetHandles: GraphHandleData[];
+  /** Back-edge source handles — rendered on the LEFT side (outgoing back-edges from this node). */
+  backSourceHandles: GraphHandleData[];
+  /** Back-edge target handles — rendered on the RIGHT side (incoming back-edges to this node). */
+  backTargetHandles: GraphHandleData[];
   minHeight: number;
 }
 
@@ -151,18 +155,20 @@ function edgeTargetHandleId(index: number): string {
   return `target-${index}`;
 }
 
+function backEdgeSourceHandleId(index: number): string {
+  return `back-source-${index}`;
+}
+
+function backEdgeTargetHandleId(index: number): string {
+  return `back-target-${index}`;
+}
+
 function edgeHandleOffset(index: number, total: number): number {
   if (total <= 1) return 0;
   if (total === 2) return index === 0 ? -EDGE_HANDLE_GAP : EDGE_HANDLE_GAP;
   return (index - (total - 1) / 2) * EDGE_HANDLE_GAP;
 }
 
-function buildEdgeHandles(total: number, idForIndex: (index: number) => string): GraphHandleData[] {
-  return Array.from({ length: total }, (_, index) => ({
-    id: idForIndex(index),
-    offset: edgeHandleOffset(index, total),
-  }));
-}
 
 function nodeHeightForHandleCount(handleCount: number): number {
   if (handleCount <= 1) return NODE_HEIGHT;
@@ -260,7 +266,7 @@ function computeLayout(
   nodes: MinigraphGraphData['nodes'],
   connections: MinigraphGraphData['connections'],
   nodeHeights: Map<string, number>,
-): Map<string, { x: number; y: number }> {
+): { positions: Map<string, { x: number; y: number }>; levelOf: Map<string, number> } {
   // ── Step 1: Classify & partition ──────────────────────────────────────────
   // Build the set of aliases that participate in at least one connection so
   // classifyNode can distinguish modules (disconnected) from flow nodes.
@@ -305,6 +311,50 @@ function computeLayout(
     .filter(n => inDegree.get(n.alias) === 0 || n.types.includes('entry_point'))
     .map(n => n.alias);
 
+  // ── Cycle detection: find back-edges via iterative DFS ────────────────
+  // Back-edges (edges pointing to an ancestor in the DFS tree) cause the
+  // BFS level-assignment loop below to run forever — each node in a cycle
+  // endlessly re-enqueues the other with ever-increasing levels.  We detect
+  // them here and exclude them from BFS so cycles are broken for layout
+  // purposes.  The edges are still rendered in the final ReactFlow output.
+  const backEdges = new Set<string>();
+  {
+    const WHITE = 0, GRAY = 1, BLACK = 2;
+    const color = new Map<string, number>();
+    for (const n of flowNodes) color.set(n.alias, WHITE);
+
+    function dfsFrom(root: string) {
+      if (color.get(root) !== WHITE) return;
+      color.set(root, GRAY);
+      const stack: { node: string; childIdx: number }[] = [{ node: root, childIdx: 0 }];
+
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1];
+        const neighbors = outEdges.get(frame.node) ?? [];
+
+        if (frame.childIdx >= neighbors.length) {
+          color.set(frame.node, BLACK);
+          stack.pop();
+          continue;
+        }
+
+        const neighbor = neighbors[frame.childIdx++];
+        const nc = color.get(neighbor);
+        if (nc === GRAY) {
+          backEdges.add(`${frame.node}\t${neighbor}`);
+        } else if (nc === WHITE) {
+          color.set(neighbor, GRAY);
+          stack.push({ node: neighbor, childIdx: 0 });
+        }
+        // BLACK → cross or forward edge, safe to ignore
+      }
+    }
+
+    // Prefer starting from seeds so the DFS tree mirrors the BFS flow
+    for (const s of seeds) dfsFrom(s);
+    for (const n of flowNodes) dfsFrom(n.alias);
+  }
+
   const levelOf = new Map<string, number>();
   const queue: string[] = [...seeds];
   seeds.forEach(s => levelOf.set(s, 0));
@@ -314,6 +364,9 @@ function computeLayout(
     const current = queue.shift()!;
     const currentLevel = levelOf.get(current) ?? 0;
     for (const neighbor of outEdges.get(current) ?? []) {
+      // Skip back-edges — they create cycles and are excluded from layout
+      // assignment but are still rendered as visual edges in the output.
+      if (backEdges.has(`${current}\t${neighbor}`)) continue;
       // Only advance the level; never move a node to a shallower level
       if (!levelOf.has(neighbor) || levelOf.get(neighbor)! <= currentLevel) {
         levelOf.set(neighbor, currentLevel + 1);
@@ -395,7 +448,7 @@ function computeLayout(
     nextRowY += rowHeight + SEGREGATED_ROW_GAP;
   }
 
-  return positions;
+  return { positions, levelOf };
 }
 
 /**
@@ -407,74 +460,160 @@ export function transformGraphData(
 ): { nodes: Node<GraphNodeData>[]; edges: Edge<GraphEdgeData>[] } {
   const connections = data.connections ?? [];
 
-  // Count outgoing/incoming connections per node to size handles.
-  const outgoingEdgeCounts = new Map<string, number>();
-  const incomingEdgeCounts = new Map<string, number>();
+  // ── Approximate node heights for layout ────────────────────────────────────
+  // Count total outgoing/incoming to get rough handle counts.  The layout only
+  // needs heights for vertical stacking; accurate per-side counts come later
+  // once we know which edges are back-edges.
+  const totalOutgoing = new Map<string, number>();
+  const totalIncoming = new Map<string, number>();
   for (const conn of connections) {
-    outgoingEdgeCounts.set(conn.source, (outgoingEdgeCounts.get(conn.source) ?? 0) + 1);
-    incomingEdgeCounts.set(conn.target, (incomingEdgeCounts.get(conn.target) ?? 0) + 1);
+    totalOutgoing.set(conn.source, (totalOutgoing.get(conn.source) ?? 0) + 1);
+    totalIncoming.set(conn.target, (totalIncoming.get(conn.target) ?? 0) + 1);
   }
 
-  // Compute per-node heights so nodes with many connections don't overlap.
-  const nodeHeights = new Map(
+  const approxNodeHeights = new Map(
     data.nodes.map(n => [
       n.alias,
       nodeHeightForHandleCount(Math.max(
-        outgoingEdgeCounts.get(n.alias) ?? 0,
-        incomingEdgeCounts.get(n.alias) ?? 0,
+        totalOutgoing.get(n.alias) ?? 0,
+        totalIncoming.get(n.alias) ?? 0,
       )),
     ]),
   );
-  const positions = computeLayout(data.nodes, connections, nodeHeights);
+  const { positions, levelOf } = computeLayout(data.nodes, connections, approxNodeHeights);
+
+  // ── Classify connections as forward or backward ───────────────────────────
+  // A back-edge goes from a deeper (or equal) level to a shallower level.
+  // These edges exit from the LEFT side of the source and enter the RIGHT
+  // side of the target — the reverse of forward edges — so the bezier curve
+  // arcs naturally backward.
+  const backEdgeIndices = new Set<number>();
+  for (const [i, conn] of connections.entries()) {
+    const srcLevel = levelOf.get(conn.source);
+    const tgtLevel = levelOf.get(conn.target);
+    if (srcLevel !== undefined && tgtLevel !== undefined && srcLevel >= tgtLevel) {
+      backEdgeIndices.add(i);
+    }
+  }
+
+  // ── Collect per-node, per-side connections sorted by peer y-position ─────
+  // Sorting handles by the y-position of the connected peer node prevents
+  // crossing: connections to a higher peer get a higher handle slot, and
+  // connections to a lower peer get a lower slot.  Forward and back-edge
+  // handles are interleaved within the sorted order rather than grouped
+  // separately, so a node that has both a forward edge and a retry to the
+  // same peer gets adjacent handles for both.
+  //
+  // Each side entry records the connection index, the peer alias, and
+  // whether the connection is a back-edge.  After sorting we walk the
+  // entries to build handle arrays and a connectionIndex → handleId map
+  // used when constructing ReactFlow edges.
+
+  interface SideEntry { connIndex: number; peerAlias: string; isBack: boolean }
+
+  const rightSide = new Map<string, SideEntry[]>(); // source (fwd out) + back-target (back in)
+  const leftSide  = new Map<string, SideEntry[]>(); // target (fwd in)  + back-source (back out)
+
+  for (const n of data.nodes) {
+    rightSide.set(n.alias, []);
+    leftSide.set(n.alias, []);
+  }
+
+  for (const [i, conn] of connections.entries()) {
+    if (backEdgeIndices.has(i)) {
+      // Back-edge: source exits LEFT, target enters RIGHT
+      leftSide.get(conn.source)!.push({ connIndex: i, peerAlias: conn.target, isBack: true });
+      rightSide.get(conn.target)!.push({ connIndex: i, peerAlias: conn.source, isBack: true });
+    } else {
+      // Forward: source exits RIGHT, target enters LEFT
+      rightSide.get(conn.source)!.push({ connIndex: i, peerAlias: conn.target, isBack: false });
+      leftSide.get(conn.target)!.push({ connIndex: i, peerAlias: conn.source, isBack: false });
+    }
+  }
+
+  // Sort each side by peer y-position so handle order matches spatial layout.
+  const peerY = (alias: string) => positions.get(alias)?.y ?? 0;
+  for (const entries of rightSide.values()) entries.sort((a, b) => peerY(a.peerAlias) - peerY(b.peerAlias));
+  for (const entries of leftSide.values())  entries.sort((a, b) => peerY(a.peerAlias) - peerY(b.peerAlias));
+
+  // Maps from connection index → handle ID, populated during node building.
+  const connSourceHandle = new Map<number, string>();
+  const connTargetHandle = new Map<number, string>();
 
   const rfNodes: Node<GraphNodeData>[] = data.nodes.map(n => {
-    const sourceHandleCount = outgoingEdgeCounts.get(n.alias) ?? 0;
-    const targetHandleCount = incomingEdgeCounts.get(n.alias) ?? 0;
-    const nodeHeight = nodeHeights.get(n.alias) ?? NODE_HEIGHT;
+    const right = rightSide.get(n.alias) ?? [];
+    const left  = leftSide.get(n.alias) ?? [];
+    const nodeHeight = nodeHeightForHandleCount(Math.max(right.length, left.length));
+
+    // ── Right side: interleaved source + back-target handles ──
+    const sourceHandles:     GraphHandleData[] = [];
+    const backTargetHandles: GraphHandleData[] = [];
+    let srcIdx = 0, btIdx = 0;
+    for (let i = 0; i < right.length; i++) {
+      const entry = right[i];
+      const offset = edgeHandleOffset(i, right.length);
+      if (entry.isBack) {
+        const id = backEdgeTargetHandleId(btIdx++);
+        backTargetHandles.push({ id, offset });
+        connTargetHandle.set(entry.connIndex, id);
+      } else {
+        const id = edgeSourceHandleId(srcIdx++);
+        sourceHandles.push({ id, offset });
+        connSourceHandle.set(entry.connIndex, id);
+      }
+    }
+
+    // ── Left side: interleaved target + back-source handles ──
+    const targetHandles:     GraphHandleData[] = [];
+    const backSourceHandles: GraphHandleData[] = [];
+    let tgtIdx = 0, bsIdx = 0;
+    for (let i = 0; i < left.length; i++) {
+      const entry = left[i];
+      const offset = edgeHandleOffset(i, left.length);
+      if (entry.isBack) {
+        const id = backEdgeSourceHandleId(bsIdx++);
+        backSourceHandles.push({ id, offset });
+        connSourceHandle.set(entry.connIndex, id);
+      } else {
+        const id = edgeTargetHandleId(tgtIdx++);
+        targetHandles.push({ id, offset });
+        connTargetHandle.set(entry.connIndex, id);
+      }
+    }
 
     return {
       id:       n.alias,
-      type:     n.types[0] ?? 'default',     // matches the nodeTypes key in GraphView
+      type:     n.types[0] ?? 'default',
       position: positions.get(n.alias) ?? { x: 0, y: 0 },
-      // width / height give the React Flow wrapper its initial size.
-      // NodeResizer will update these as the user drags a handle.
       width:  NODE_WIDTH,
       height: nodeHeight,
-      // style is applied directly to the React Flow wrapper element — since
-      // MinigraphNode renders as a Fragment there is no inner shell div, so
-      // this IS the visible node appearance.
       style: nodeStyle(n.types[0] ?? 'unknown'),
       data: {
         alias:         n.alias,
         nodeType:      n.types[0] ?? 'unknown',
         properties:    n.properties,
-        sourceHandles: buildEdgeHandles(sourceHandleCount, edgeSourceHandleId),
-        targetHandles: buildEdgeHandles(targetHandleCount, edgeTargetHandleId),
+        sourceHandles,
+        targetHandles,
+        backSourceHandles,
+        backTargetHandles,
         minHeight:     nodeHeight,
       },
     };
   });
 
-  const outgoingEdgeIndex = new Map<string, number>();
-  const incomingEdgeIndex = new Map<string, number>();
-
-  // Flatten connections → edges (one edge per connection with per-handle routing).
+  // ── Build edges using the pre-computed handle mappings ─────────────────────
   const rfEdges: Edge<GraphEdgeData>[] = [];
   for (const [index, conn] of connections.entries()) {
     const relationTypes = conn.relations.map(r => r.type);
     const edgeId = `${conn.source}__${conn.target}__${index}`;
     const labelColor = edgeColor(relationTypes);
-    const sourceEdgeIndex = outgoingEdgeIndex.get(conn.source) ?? 0;
-    const targetEdgeIndex = incomingEdgeIndex.get(conn.target) ?? 0;
-    outgoingEdgeIndex.set(conn.source, sourceEdgeIndex + 1);
-    incomingEdgeIndex.set(conn.target, targetEdgeIndex + 1);
 
     rfEdges.push({
       id:           edgeId,
       source:       conn.source,
       target:       conn.target,
-      sourceHandle: edgeSourceHandleId(sourceEdgeIndex),
-      targetHandle: edgeTargetHandleId(targetEdgeIndex),
+      sourceHandle: connSourceHandle.get(index)!,
+      targetHandle: connTargetHandle.get(index)!,
       label:        relationTypes.join(', '),
       type:         'bezier',
       markerEnd: {
@@ -495,7 +634,6 @@ export function transformGraphData(
       labelBgStyle: {
         fill:        EDGE_LABEL_BG,
         fillOpacity: 0.94,
-        // --text-primary (rgb 15 23 42) at 16% opacity — subtle label border
         stroke:      'rgba(15, 23, 42, 0.16)',
         strokeWidth: 1,
       },
