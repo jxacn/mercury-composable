@@ -288,6 +288,17 @@ class GraphTests {
         log.info("Tutorial 13 works");
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void highFrequencyCase() throws TimeoutException {
+        var result = runTutorial(14, Map.of("person_id", 100, "exception", true));
+        assertInstanceOf(Map.class, result);
+        var mm = new MultiLevelMap((Map<String, Object>) result);
+        assertEquals(400, mm.getElement("status"));
+        assertEquals("Node fetcher executed too frequently", mm.getElement("message"));
+        log.info("High frequency detected");
+    }
+
     private Object runTutorial(int chapter, Map<String, Object> input) throws TimeoutException {
         var request = new AsyncHttpRequest().setMethod(input.isEmpty()? "GET" : "POST").setTargetHost(target);
         if (!input.isEmpty()) {
