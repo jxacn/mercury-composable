@@ -356,6 +356,45 @@ To enable distributed trace logging, please set this in log4j2.xml:
 <logger name="org.platformlambda.core.services.Telemetry" level="INFO" />
 ```
 
+## HTTP request and response trace logging
+
+`AsyncHttpClient` can log every outbound HTTP request and its corresponding response at DEBUG level.
+Each direction is a single, complete log entry — the request is logged before the call is made and
+the response after the full body has been received.
+
+A request log entry looks like:
+
+```text
+DEBUG AsyncHttpClient -
+>>> POST https://postman-echo.com/post
+    content-type: application/json
+    accept: application/json
+    body: {"message":"hello","from":"curl"}
+```
+
+A response log entry looks like:
+
+```text
+DEBUG AsyncHttpClient -
+<<< 200
+    content-type: application/json; charset=utf-8
+    content-length: 418
+    body: {"args":{},"data":{"from":"curl","message":"hello"},...,"url":"https://postman-echo.com/post"}
+```
+
+To enable this, add the following logger to your `log4j2.xml` and set the `HTTP_TRACE_LEVEL`
+environment variable to `DEBUG`:
+
+```xml
+<logger name="org.platformlambda.automation.http.AsyncHttpClient"
+        level="${env:HTTP_TRACE_LEVEL:-INFO}" additivity="false">
+    <AppenderRef ref="Console" />
+</logger>
+```
+
+Leave `HTTP_TRACE_LEVEL` unset (or set it to `INFO`) to silence the trace output.
+No code change is required — only the environment variable controls whether logging is active.
+
 ## Built-in XML serializer
 
 The platform-core includes built-in serializers for JSON and XML in the AsyncHttpClient and
